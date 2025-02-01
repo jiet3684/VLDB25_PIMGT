@@ -1,0 +1,105 @@
+#include "../segment_Graph.h"
+#include <omp.h>
+
+int segment_divide(csr mat, int target, refine ref) {
+    int total_step = log2(target);
+    pairInfo* hub_nodes = make_SortedPair(&mat);
+    memset(sg_index, 0, mat.nr << 2);
+    pairInfo* degree = malloc(mat.nr << 3);
+    int* mapping = malloc(mat.nr << 2);
+    char* visited = malloc(mat.nr);
+    sg_size[0] = mat.nr;
+    float range = 0.01f;
+    timeval st_total, ed_total;
+    timeval st_inn, ed_inn;
+    float time_total, time_hdv = 0;
+    
+    if (ref > NO_REFINEMENT) prepare_Refinement(mat, target);
+
+    cur_Time(&st_total);
+    for (int step = 0; step < total_step; ++step) {
+        memset(visited, 0, mat.nr);
+        memset(mapping, 0xff, mat.nr << 2);
+
+        cur_Time(&st_inn);
+        for (int sg = (1 << step) - 1; sg >= 0; --sg) {
+            int target_size = sg_size[sg] >> 1;
+            int low = floor((1 - range) * target_size);
+            int high = ceil((1 + range) * target_size);
+
+            int flag = 0;
+            int temp_size[2] = {0, 0};
+            while (temp_size[0] < target_size && temp_size[1] < target_size) {
+                int cur_sg = (sg << 1) + flag;
+                int hub_node;
+                for (int i = 0; i < mat.nr; ++i) {
+                    if (sg_index[hub_nodes[i].index] == sg && !visited[hub_nodes[i].index]) {
+                        hub_node = hub_nodes[i].index;
+                        break;
+                    }
+                }
+
+                int size = 0;
+                size = push(degree, mapping, size, hub_node, 1);
+
+                int count = 0;
+                while (size > 0) {
+                    pairInfo cur_node = pop(degree, mapping, size - 1);
+                    size--; count++;
+                    if (visited[cur_node.index] || sg_index[cur_node.index] != sg) continue;
+                    sg_index[cur_node.index] = cur_sg;
+                    visited[cur_node.index] = 1;
+                    temp_size[flag]++;
+                    if (temp_size[flag] >= target_size) {
+                        break;
+                    }
+                    for (int e = mat.ptr[cur_node.index]; e < mat.ptr[cur_node.index + 1]; ++e) {
+                        int dst = mat.idx[e];
+                        if (sg_index[dst] == sg && !visited[dst]) {
+                            if (mapping[dst] >= 0) {
+                                degree[mapping[dst]].nnz++;
+                                heapify(degree, mapping, mapping[dst]);
+                            }
+                            else if (mapping[dst] == -1) {
+                                size = push(degree, mapping, size, dst, 1);
+                            }
+                        }
+                    }
+                }
+                flag = 1 - flag;
+            }
+            if (temp_size[flag] < target_size) {
+                for (int i = 0; i < mat.nr; ++i) {
+                    if (sg_index[i] == sg && !visited[i]) {
+                        sg_index[i] = (sg << 1) + flag;
+                        visited[i] = 1;
+                        temp_size[flag]++;
+                    }
+                }
+            }
+            sg_size[(sg << 1)] = temp_size[0];
+            sg_size[(sg << 1) + 1] = temp_size[1];
+
+            // printf("\tDivide Subgraph %d: %d, %d\n", sg, sg_size[sg << 1], sg_size[(sg << 1) + 1]);
+        }
+        cur_Time(&ed_inn);
+        time_hdv += elapsed_Time(st_inn, ed_inn);
+        if (ref >= ICN_REFINEMENT) ICN_Refinement(mat, step + 1);
+    }
+    if (ref == BALANCE_REFINEMENT) ICN_Balancing(mat);
+    cur_Time(&ed_total);
+    time_total = elapsed_Time(st_total, ed_total);
+
+    if (ref > NO_REFINEMENT) finish_Refinement();
+    printf("Half-DiVision:\t%.2f sec\n", time_hdv);
+    printf("Total Time:\t%.2f sec\n\n", time_total);
+#ifdef debug
+    fprintf(fp, "%.4f,", time_total);
+#endif
+
+    free(hub_nodes);
+    free(degree);
+    free(mapping);
+    free(visited);
+    return target;
+}
