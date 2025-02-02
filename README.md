@@ -16,6 +16,7 @@ We provide an object file and some source code files written by C.
 
 You can generate the executable files with "graph_partitioner/Makefile".
 ```
+VLDB25_PIMGT/graph_partitioner$ mkdir obj bin
 VLDB25_PIMGT/graph_partitioner$ make	  	// generates all executables
 VLDB25_PIMGT/graph_partitioner$ make base	// generates all baselines
 ```
@@ -80,6 +81,8 @@ We provide the Breadth-First Search Algorithm.
 
 Install the UPMEM SDK (https://sdk.upmem.com/) [4] and generate the executable files with "Makefile".
 ```
+cd graph_traversal
+VLDB25_PIMGT/graph_traversal$ mkdir obj bin
 VLDB25_PIMGT/graph_traversal$ make
 ```
 
